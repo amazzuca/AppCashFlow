@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  base: '/AppCashFlow/'
+  // Reemplaza 'mi-app-flujo-de-caja' con el nombre de tu repo.
+  base: '/AppCashFlow/', 
+  plugins: [
+    react(),
+  ],
+  // El bloque 'css' se ha eliminado para que no entre en conflicto
+  // con el archivo postcss.config.js
 })
+
