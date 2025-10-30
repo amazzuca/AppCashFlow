@@ -846,6 +846,8 @@ export default function App() {
           return;
       }
       
+      setPdfMessage('Generando...'); // <-- Feedback inicial
+
       const reportElement = document.createElement('div');
       reportElement.className = 'p-10 bg-white text-black';
       reportElement.style.width = '210mm';
@@ -854,8 +856,8 @@ export default function App() {
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px;">
                   <img src="${LOGO_DATA_URI}" style="height: 50px;" alt="Logo"/>
                   <div>
-                      <h1 style="font-size: 24px; margin: 0;">Informe de Flujo de Caja Proyectado</h1>
-                      <p style="text-align: right; margin: 0;">Generado: ${new Date().toLocaleDateString('es-AR')}</p>
+                      <h1 style="font-size: 24px; margin: 0; margin-bottom: 5px;">Informe de Flujo de Caja Proyectado</h1>
+                      <p style="text-align: right; margin: 0; font-size: 12px;">Fecha: ${new Date().toLocaleDateString('es-AR')}</p>
                       <p style="text-align: right; margin: 0; font-size: 12px;">Hora: ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs</p>
                   </div>
               </div>
@@ -924,8 +926,12 @@ export default function App() {
         heightLeft -= pdf.internal.pageSize.getHeight();
       }
       
-      pdf.save(`Reporte-Flujo-Caja-${new Date().toISOString().split('T')[0]}.pdf`);
-// 2. Enviar el PDF al webhook
+      const pdfFileName = `Reporte-Flujo-Caja-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // 1. Guardar el PDF para el usuario (funcionalidad original)
+      pdf.save(pdfFileName);
+      
+      // 2. Enviar el PDF al webhook
       try {
         const pdfBlob = pdf.output('blob');
         const formData = new FormData();
@@ -934,10 +940,20 @@ export default function App() {
         setPdfMessage('Enviando...'); 
 
         const webhookUrl = 'https://amazzuca.app.n8n.cloud/webhook-test/973408b5-489b-449b-9d36-d1fe7d6cf006';
+        
+        // --- INICIO DE MODIFICACIÓN: Basic Auth ---
+        const username = 'test';
+        const password = 'test123';
+        const basicAuth = 'Basic ' + btoa(username + ':' + password); // btoa() codifica a Base64
+
         const response = await fetch(webhookUrl, {
           method: 'POST',
+          headers: {
+            'Authorization': basicAuth
+          },
           body: formData,
         });
+        // --- FIN DE MODIFICACIÓN ---
 
         if (response.ok) {
           console.log('PDF successfully sent to webhook.');
@@ -1080,7 +1096,7 @@ export default function App() {
         let expenseDate = new Date(expense.startDate + 'T00:00:00');
         while (expenseDate < projectionEndDate) {
             if (expenseDate >= today) {
-                let applicableAmount = 0;
+                let applicableAmount = 0;  
                 Object.entries(expense.allocations).forEach(([company, percentage]) => {
                     if (activeCompanies.has(company)) {
                         applicableAmount += expense.amount * (percentage / 100);
