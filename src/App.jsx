@@ -856,6 +856,7 @@ export default function App() {
                   <div>
                       <h1 style="font-size: 24px; margin: 0;">Informe de Flujo de Caja Proyectado</h1>
                       <p style="text-align: right; margin: 0;">Generado: ${new Date().toLocaleDateString('es-AR')}</p>
+                      <p style="text-align: right; margin: 0; font-size: 12px;">Hora: ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs</p>
                   </div>
               </div>
               <h2 style="font-size: 18px; margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 5px;">Resumen de Métricas</h2>
