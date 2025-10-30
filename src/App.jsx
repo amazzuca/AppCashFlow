@@ -924,6 +924,43 @@ export default function App() {
       }
       
       pdf.save(`Reporte-Flujo-Caja-${new Date().toISOString().split('T')[0]}.pdf`);
+// 2. Enviar el PDF al webhook
+      try {
+        const pdfBlob = pdf.output('blob');
+        const formData = new FormData();
+        formData.append('file', pdfBlob, pdfFileName);
+        
+        setPdfMessage('Enviando...'); 
+
+        const webhookUrl = 'https://amazzuca.app.n8n.cloud/webhook-test/973408b5-489b-449b-9d36-d1fe7d6cf006';
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          console.log('PDF successfully sent to webhook.');
+          setPdfMessage('PDF Enviado ✓');
+        } else {
+          console.error('Failed to send PDF to webhook:', response.statusText);
+          setPdfMessage('Error de Envío');
+        }
+      } catch (error) {
+        // Log a more descriptive error for the developer
+        console.error('Error sending PDF to webhook. This is often a CORS issue.', error);
+        
+        // Check if the error is a TypeError, which is common for network/CORS failures
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          setPdfMessage('Error de Red/CORS');
+          console.error('**Nota para el desarrollador:** Un error "Failed to fetch" suele ser causado por una política de CORS (Cross-Origin Resource Sharing) en el servidor de destino. Por favor, asegúrate de que tu URL de webhook (https://amazzuca.app.n8n.cloud/...) esté configurada para aceptar solicitudes POST desde este origen y que maneje correctamente las solicitudes OPTIONS (preflight) si es necesario.');
+        } else {
+          setPdfMessage('Error de Envío');
+        }
+      } finally {
+        // Limpiar el mensaje después de unos segundos
+        setTimeout(() => setPdfMessage(''), 3000);
+      }
+
       document.body.removeChild(reportElement);
   };
   
