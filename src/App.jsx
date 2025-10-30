@@ -838,7 +838,7 @@ export default function App() {
     }
   };
   
-    const handleGeneratePdf = async () => {
+const handleGeneratePdf = async () => {
       const { jsPDF } = window.jspdf;
       const html2canvas = window.html2canvas;
       if (!jsPDF || !html2canvas) {
