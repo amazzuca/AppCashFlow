@@ -237,6 +237,87 @@ const AddFixedExpenseModal = ({ isOpen, onClose, onSave, companies, expenseToEdi
     );
 };
 
+// === COMPONENTE NUEVO PARA GASTOS MANUALES (CON ASIGNACIÓN) ===
+const ManualExpenseModal = ({ isOpen, onClose, onSave, companies }) => {
+    const [description, setDescription] = React.useState('');
+    const [amount, setAmount] = React.useState('');
+    const [date, setDate] = React.useState(new Date().toISOString().split('T')[0]);
+    const [allocations, setAllocations] = React.useState({});
+    const [error, setError] = React.useState('');
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setDescription('');
+            setAmount('');
+            setDate(new Date().toISOString().split('T')[0]);
+            // Inicializar asignaciones en 0 para cada empresa
+            setAllocations(Object.keys(companies).reduce((acc, comp) => ({ ...acc, [comp]: 0 }), {}));
+            setError('');
+        }
+    }, [isOpen, companies]);
+
+    const handleAllocationChange = (company, value) => {
+        const newAllocations = { ...allocations, [company]: parseInt(value, 10) || 0 };
+        setAllocations(newAllocations);
+    };
+
+    const handleSubmit = () => {
+        const totalAllocation = Object.values(allocations).reduce((sum, val) => sum + val, 0);
+
+        if (!description || !amount || !date) {
+            setError('Todos los campos son obligatorios.');
+            return;
+        }
+        
+        // Validar asignación del 100%
+        if (totalAllocation !== 100) {
+            setError(`La suma de las asignaciones debe ser 100%, no ${totalAllocation}%.`);
+            return;
+        }
+
+        onSave({ 
+            id: `me-${Date.now()}`, 
+            description, 
+            amount: parseFloat(amount), 
+            date,
+            allocations
+        });
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-md">
+                <h2 className="text-2xl font-bold text-indigo-400 mb-4">Añadir Otro Gasto</h2>
+                {error && <p className="bg-red-900 text-red-300 p-2 rounded-md mb-4 text-sm">{error}</p>}
+                <div className="space-y-4">
+                    <input type="text" placeholder="Descripción (Ej: Reparación PC)" value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-900 rounded p-2 focus:ring-indigo-500 focus:outline-none" />
+                    <input type="number" placeholder="Monto (USD)" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-gray-900 rounded p-2 focus:ring-indigo-500 focus:outline-none" />
+                    <div>
+                        <label className="text-sm text-gray-400">Fecha del gasto</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-900 rounded p-2 focus:ring-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg text-gray-300 mb-2">Asignación por Empresa (%)</h3>
+                        {Object.keys(companies).map(comp => (
+                            <div key={comp} className="flex items-center justify-between mb-2">
+                                <label className="text-gray-400">{comp}</label>
+                                <input type="number" value={allocations[comp] || 0} onChange={e => handleAllocationChange(comp, e.target.value)} className="w-1/3 bg-gray-900 rounded p-2 text-center focus:ring-indigo-500 focus:outline-none" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="flex justify-end gap-4 mt-6">
+                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">Cancelar</button>
+                    <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded">Añadir</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const OverdueInvoicesModal = ({ isOpen, onClose, onConfirm, invoices, onGenerateEmail, isGeneratingEmail }) => {
     const [dueDates, setDueDates] = React.useState({});
 
@@ -450,7 +531,9 @@ export default function App() {
   const [crmSales, setCrmSales] = React.useState([]);
   const [includeCrm, setIncludeCrm] = React.useState(true);
   const [fixedExpenses, setFixedExpenses] = React.useState([]);
+  const [manualExpenses, setManualExpenses] = React.useState([]); // Nuevo estado
   const [isExpenseModalOpen, setIsExpenseModalOpen] = React.useState(false);
+  const [isManualExpenseModalOpen, setIsManualExpenseModalOpen] = React.useState(false); // Nuevo estado modal
   const [expenseToEdit, setExpenseToEdit] = React.useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [expenseToDelete, setExpenseToDelete] = React.useState(null);
@@ -501,6 +584,7 @@ export default function App() {
             if (decodedState.companiesData && decodedState.activeCompanies) {
                 setCompaniesData(decodedState.companiesData);
                 setFixedExpenses(decodedState.fixedExpenses || []);
+                setManualExpenses(decodedState.manualExpenses || []); // Cargar manuales compartidos
                 // Usar el operador de coalescencia nula para manejar correctamente los booleanos
                 setIncludeTrello(decodedState.includeTrello ?? true);
                 setIncludeCrm(decodedState.includeCrm ?? true);
@@ -532,9 +616,18 @@ export default function App() {
             } else {
                 setFixedExpenses([]);
             }
+            // Cargar gastos manuales locales
+            const savedManualExpenses = localStorage.getItem('cashFlowApp-manualExpenses');
+            if (savedManualExpenses) {
+                setManualExpenses(JSON.parse(savedManualExpenses));
+            } else {
+                setManualExpenses([]);
+            }
+
         } catch (error) {
-            console.error("Error al cargar gastos fijos desde localStorage", error);
+            console.error("Error al cargar datos desde localStorage", error);
             setFixedExpenses([]);
+            setManualExpenses([]);
         }
     }
     
@@ -581,20 +674,21 @@ export default function App() {
 
   }, []); // Este efecto se ejecuta solo una vez al montar el componente
 
-  // Guardar gastos fijos en localStorage cada vez que cambian
+  // Guardar gastos fijos y manuales en localStorage cada vez que cambian
   React.useEffect(() => {
     try {
         localStorage.setItem('cashFlowApp-fixedExpenses', JSON.stringify(fixedExpenses));
+        localStorage.setItem('cashFlowApp-manualExpenses', JSON.stringify(manualExpenses));
     } catch (error) {
-        console.error("Error al guardar gastos fijos en localStorage", error);
+        console.error("Error al guardar en localStorage", error);
     }
-  }, [fixedExpenses]);
+  }, [fixedExpenses, manualExpenses]);
 
   React.useEffect(() => {
     if (Object.keys(companiesData).length > 0) {
         calculateCashFlow();
     }
-  }, [companiesData, activeCompanies, includeTrello, trelloExpenses, includeCrm, crmSales, fixedExpenses]);
+  }, [companiesData, activeCompanies, includeTrello, trelloExpenses, includeCrm, crmSales, fixedExpenses, manualExpenses]);
   
   const handleFileSelect = (companyName, fileType, event) => {
       const file = event.target.files[0];
@@ -791,6 +885,14 @@ export default function App() {
       setExpenseToDelete(expense);
       setIsDeleteModalOpen(true);
   }
+
+  const handleSaveManualExpense = (expense) => {
+      setManualExpenses(prev => [...prev, expense]);
+  };
+
+  const handleDeleteManualExpense = (id) => {
+      setManualExpenses(prev => prev.filter(e => e.id !== id));
+  };
   
   const confirmDeleteExpense = () => {
       setFixedExpenses(prev => prev.filter(e => e.id !== expenseToDelete.id));
@@ -802,6 +904,7 @@ export default function App() {
     const sharableState = {
         companiesData,
         fixedExpenses,
+        manualExpenses, // Incluir en compartir
         includeTrello,
         includeCrm,
         activeCompanies: Array.from(activeCompanies),
@@ -1011,12 +1114,8 @@ const handleGeneratePdf = async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [, currentWeekNum] = getWeekNumber(today);
-    const targetWeek = 49;
-
-    // Calcula dinámicamente las semanas de proyección para llegar hasta la semana 49.
-    // Si ya pasó la semana 49, se proyectan 12 semanas por defecto.
-    const projectionWeeks = currentWeekNum < targetWeek ? (targetWeek - currentWeekNum) + 1 : 12;
+    // Se fija la proyección en 10 semanas, reemplazando el cálculo dinámico anterior.
+    const projectionWeeks = 10;
 
 
     activeCompanies.forEach(name => {
@@ -1060,6 +1159,28 @@ const handleGeneratePdf = async () => {
                 }
             }
             expenseDate.setMonth(expenseDate.getMonth() + 1);
+        }
+    });
+
+    // Agregar Gastos Manuales
+    manualExpenses.forEach(expense => {
+        if (expense.date && expense.amount) {
+            // Validar si existen asignaciones (compatibilidad con datos antiguos + nueva funcionalidad)
+            if (expense.allocations) {
+                let applicableAmount = 0;
+                Object.entries(expense.allocations).forEach(([company, percentage]) => {
+                    if (activeCompanies.has(company)) {
+                        applicableAmount += expense.amount * (percentage / 100);
+                    }
+                });
+                // Solo añadir si hay un monto para las empresas activas
+                if (applicableAmount > 0) {
+                    combined.purchases.push({ date: expense.date, amount: applicableAmount });
+                }
+            } else {
+                // Comportamiento legacy: añadir el monto completo si no hay asignaciones definidas
+                combined.purchases.push({ date: expense.date, amount: expense.amount });
+            }
         }
     });
     
@@ -1369,6 +1490,22 @@ const handleGeneratePdf = async () => {
                     )) : <p className="text-gray-500 text-center py-4">No hay gastos fijos añadidos.</p>}
                  </div>
                  <button onClick={() => { setExpenseToEdit(null); setIsExpenseModalOpen(true); }} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3 rounded-lg text-sm mt-3 w-full">Añadir Gasto Fijo</button>
+                 
+                 <button onClick={() => setIsManualExpenseModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-3 rounded-lg text-sm mt-2 w-full">Añadir otro gasto</button>
+
+                 <div className="text-sm text-gray-400 space-y-2 mt-4 max-h-32 overflow-y-auto pr-2 border-t border-gray-700 pt-2">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase">Otros Gastos</h4>
+                    {manualExpenses.length > 0 ? manualExpenses.map(exp => (
+                        <div key={exp.id} className="flex justify-between items-center bg-gray-900 p-2 rounded">
+                            <div>
+                                <span className="font-semibold">{exp.description}</span>
+                                <span className="block text-xs text-gray-500">{formatCurrency(exp.amount)} - {exp.date}</span>
+                            </div>
+                             <button onClick={() => handleDeleteManualExpense(exp.id)} className="text-red-400 hover:text-red-300 text-xs font-semibold">BORRAR</button>
+                        </div>
+                    )) : <p className="text-gray-600 text-xs">No hay gastos adicionales.</p>}
+                 </div>
+
             </div>
             <div className="row-span-2">
                 <FileUploadAccordion 
@@ -1474,6 +1611,12 @@ const handleGeneratePdf = async () => {
             companies={companiesData}
             expenseToEdit={expenseToEdit} 
         />
+        <ManualExpenseModal
+            isOpen={isManualExpenseModalOpen}
+            onClose={() => setIsManualExpenseModalOpen(false)}
+            onSave={handleSaveManualExpense}
+            companies={companiesData}
+        />
         <OverdueInvoicesModal 
             isOpen={isOverdueModalOpen} 
             onClose={() => setIsOverdueModalOpen(false)} 
@@ -1499,4 +1642,3 @@ const handleGeneratePdf = async () => {
     </div>
   );
 }
-
